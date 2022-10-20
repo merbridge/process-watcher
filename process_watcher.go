@@ -6,7 +6,6 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/mdlayher/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -82,15 +81,15 @@ func (pw *processWatcher) Start() error {
 		return err
 	}
 	var op uint32 = 1
-	headerSize := uint64(unsafe.Sizeof(netlink.Header{}))
+	headerSize := uint64(unsafe.Sizeof(syscall.NlMsghdr{}))
 	opSize := uint64(unsafe.Sizeof(op))
 	msgSize := uint64(unsafe.Sizeof(cn_msg{}))
 	var iovecs = make([]unix.Iovec, 3)
 	s := uint32(msgSize + opSize + headerSize)
-	h := netlink.Header{
-		Length: s,
-		PID:    uint32(os.Getegid()),
-		Type:   netlink.Done,
+	h := syscall.NlMsghdr{
+		Len:  s,
+		Pid:  uint32(os.Getegid()),
+		Type: syscall.NLMSG_DONE,
 	}
 	iovecs[0].Base = (*byte)(unsafe.Pointer(&h))
 	iovecs[0].Len = headerSize
@@ -118,10 +117,10 @@ func (pw *processWatcher) Start() error {
 				pw.events <- WatchEvent{Err: err}
 				return
 			}
-			h := (*netlink.Header)(unsafe.Pointer(&bs[0]))
+			h := (*syscall.NlMsghdr)(unsafe.Pointer(&bs[0]))
 			minDataLen := uint32(headerSize) + uint32(msgSize) + uint32(unsafe.Sizeof(ProcEventHeader{}))
-			if h.Length < minDataLen {
-				pw.events <- WatchEvent{Err: fmt.Errorf("data len %d is lower than required", h.Length)}
+			if h.Len < minDataLen {
+				pw.events <- WatchEvent{Err: fmt.Errorf("data len %d is lower than required", h.Len)}
 				continue
 			}
 			msg := (*cn_msg)(unsafe.Pointer(&bs[headerSize]))
