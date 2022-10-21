@@ -71,6 +71,13 @@ func (pw *processWatcher) Events() <-chan WatchEvent {
 	return pw.events
 }
 
+func (pw *processWatcher) sendEvents(e WatchEvent) {
+	select {
+	case pw.events <- e:
+	case <-pw.stop:
+	}
+}
+
 func (pw *processWatcher) Start() error {
 	sock, err := syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_DGRAM, syscall.NETLINK_CONNECTOR)
 	if err != nil {
@@ -111,21 +118,26 @@ func (pw *processWatcher) Start() error {
 	pw.sock = sock
 	go func() {
 		for {
+			select {
+			case <-pw.stop:
+				return
+			default:
+			}
 			bs := make([]byte, 1024)
 			_, _, err := syscall.Recvfrom(sock, bs, 0)
 			if err != nil {
-				pw.events <- WatchEvent{Err: err}
+				pw.sendEvents(WatchEvent{Err: err})
 				return
 			}
 			h := (*syscall.NlMsghdr)(unsafe.Pointer(&bs[0]))
 			minDataLen := uint32(headerSize) + uint32(msgSize) + uint32(unsafe.Sizeof(ProcEventHeader{}))
 			if h.Len < minDataLen {
-				pw.events <- WatchEvent{Err: fmt.Errorf("data len %d is lower than required", h.Len)}
+				pw.sendEvents(WatchEvent{Err: fmt.Errorf("data len %d is lower than required", h.Len)})
 				continue
 			}
 			msg := (*cn_msg)(unsafe.Pointer(&bs[headerSize]))
 			pe := ProcEvent{ptr: unsafe.Pointer(&msg.data[0])}
-			pw.events <- WatchEvent{ProcEvent: pe}
+			pw.sendEvents(WatchEvent{ProcEvent: pe})
 		}
 	}()
 	return nil
