@@ -73,9 +73,11 @@ func (pw *processWatcher) Events() <-chan WatchEvent {
 
 func (pw *processWatcher) sendEvents(e WatchEvent) {
 	select {
-	case pw.events <- e:
 	case <-pw.stop:
+		return
+	default:
 	}
+	pw.events <- e
 }
 
 func (pw *processWatcher) Start() error {
