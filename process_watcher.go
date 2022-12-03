@@ -80,11 +80,11 @@ type processMonitorMsg struct {
 func (pw *processWatcher) Start() error {
 	sock, err := syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_DGRAM, syscall.NETLINK_CONNECTOR)
 	if err != nil {
-		return err
+		return fmt.Errorf("create netlink socket error: %v", err)
 	}
 	addr := &syscall.SockaddrNetlink{Family: syscall.AF_NETLINK, Pid: uint32(os.Getpid()), Groups: 1}
 	if err := syscall.Bind(sock, addr); err != nil {
-		return err
+		return fmt.Errorf("bind addr %+v to sock error: %v", addr, err)
 	}
 	headerSize := uint64(unsafe.Sizeof(syscall.NlMsghdr{}))
 	msgSize := uint64(unsafe.Sizeof(cn_msg{}))
@@ -119,7 +119,7 @@ func (pw *processWatcher) Start() error {
 	mmm := *(*[]byte)(unsafe.Pointer(&x))
 	err = unix.Send(sock, mmm, 0)
 	if err != nil {
-		return err
+		return fmt.Errorf("send msg %+v to sock error: %v", mm, err)
 	}
 	pw.sock = sock
 	go func() {
